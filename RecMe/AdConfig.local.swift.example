@@ -1,0 +1,21 @@
+//
+//  AdConfig.local.swift.example
+//  scriptCam
+//
+//  このファイルをコピーして AdConfig.local.swift を作成し、
+//  実際の広告ユニットIDを設定してください。
+//  AdConfig.local.swift は .gitignore に含まれているため、
+//  GitHubに公開されません。
+//
+
+import Foundation
+
+extension AdConfig {
+    // ローカル開発用の広告ユニットIDを設定
+    // このファイルはGitHubに公開されません
+    static var localRewardAdUnitID: String? {
+        // ここに実際の広告ユニットIDを設定
+        // return "ca-app-pub-2289723020512274/7766145964"
+        return nil
+    }
+}
