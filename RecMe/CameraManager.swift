@@ -259,11 +259,7 @@ extension CameraManager: AVCaptureFileOutputRecordingDelegate {
             // 動画保存完了時のバイブレーション
             HapticManager.shared.success()
             
-            // リワード広告を表示（動画保存ごとに1回）
-            RewardAdManager.shared.showRewardedAd {
-                // 広告視聴完了後の処理（必要に応じて）
-                print("リワード広告視聴完了")
-            }
+
         }
     }
 }

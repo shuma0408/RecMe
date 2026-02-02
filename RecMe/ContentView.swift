@@ -38,7 +38,7 @@ struct ContentView: View {
                 timeLimit: $timeLimit
             )
             .tabItem {
-                Label("スクリプト台本", systemImage: "text.cursor")
+                Label("台本", systemImage: "doc.text.fill")
             }
             .tag(1)
             

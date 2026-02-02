@@ -13,12 +13,11 @@ struct ScriptEditView: View {
     @Binding var scrollSpeed: Double
     @Binding var timeLimit: TimeInterval?
     
-    @State private var scriptTitle: String = "新しいスクリプト"
+    @State private var scriptTitle: String = ""
     @State private var useTimeLimit: Bool = false
     @State private var selectedMinutes: Int = 1
     @State private var selectedSeconds: Int = 0
     @State private var showScriptList: Bool = false
-    @State private var showAIAssistant: Bool = false
     @State private var showSaveSuccess: Bool = false
     
     // 時間制限から計算されたスクロール速度
@@ -34,244 +33,167 @@ struct ScriptEditView: View {
     
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 20) {
-                // スクリプト選択・管理
-                HStack(spacing: 12) {
-                    Button(action: {
-                        showScriptList = true
-                    }) {
-                        HStack {
-                            Image(systemName: "list.bullet")
-                            Text("スクリプト一覧")
-                        }
-                        .font(.subheadline)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(Color.blue)
-                        .foregroundColor(.white)
-                        .cornerRadius(10)
+            ZStack {
+                Color(uiColor: .systemGroupedBackground)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        hideKeyboard()
                     }
+                
+                VStack(spacing: 0) {
                     
-                    Spacer()
-                }
-                .padding(.horizontal)
-                .padding(.top, 10)
-                    
-                    // スクリプトタイトル
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("タイトル")
-                            .font(.headline)
-                            .foregroundColor(.primary)
-                        TextField("スクリプトタイトルを入力", text: $scriptTitle)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-                            .padding(.horizontal, 0)
-                    }
-                    .padding(.horizontal)
-                    
-                    // スクリプト編集
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Text("スクリプト内容")
+                    // Main Content
+                    List {
+                        // Title Section
+                        Section {
+                            TextField("タイトルを入力", text: $scriptTitle)
                                 .font(.headline)
-                            Spacer()
-                            Text("\(scriptText.count)文字")
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 4)
-                                .background(Color(.systemGray5))
-                                .cornerRadius(8)
+                        } header: {
+                            Text("タイトル")
                         }
                         
-                        HStack(alignment: .top, spacing: 12) {
+                        // Script Content Section
+                        Section {
                             ZStack(alignment: .topLeading) {
                                 if scriptText.isEmpty {
-                                    Text("スクリプトを入力してください...")
-                                        .foregroundColor(.gray)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 8)
+                                    Text("ここに台本を入力してください...")
+                                        .foregroundColor(Color(uiColor: .tertiaryLabel))
+                                        .padding(.top, 8)
+                                        .padding(.leading, 5)
                                 }
                                 TextEditor(text: $scriptText)
-                                    .frame(minHeight: 200)
-                                    .padding(4)
+                                    .frame(minHeight: 300)
+                                    .font(.body)
                             }
-                            .background(Color(.systemGray6))
-                            .cornerRadius(10)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(Color(.systemGray4), lineWidth: 1)
-                            )
-                            
-                            // AI生成ボタン（右側）
-                            Button(action: {
-                                showAIAssistant = true
-                            }) {
-                                VStack(spacing: 8) {
-                                    Image(systemName: "sparkles")
-                                        .font(.title2)
-                                    Text("AI生成")
-                                        .font(.caption)
-                                }
-                                .foregroundColor(.white)
-                                .frame(width: 70)
-                                .padding(.vertical, 12)
-                                .background(Color.purple)
-                                .cornerRadius(10)
-                            }
-                        }
-                    }
-                    .padding(.horizontal)
-                    
-                    Divider()
-                        .padding(.vertical, 8)
-                    
-                    // 時間制限設定
-                    VStack(alignment: .leading, spacing: 16) {
-                        Toggle(isOn: $useTimeLimit) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("時間制限モード")
-                                    .font(.headline)
-                                Text("指定時間で自動的にスクロールします")
+                        } header: {
+                            HStack {
+                                Text("本文")
+                                Spacer()
+                                Text("\(scriptText.count)文字")
                                     .font(.caption)
-                                    .foregroundColor(.gray)
+                                    .foregroundColor(.secondary)
                             }
                         }
-                        .padding(.horizontal)
                         
-                        if useTimeLimit {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("指定時間")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                                    .padding(.horizontal)
-                                
-                                HStack(spacing: 20) {
-                                    VStack(spacing: 8) {
-                                        Text("分")
-                                            .font(.caption)
-                                            .foregroundColor(.gray)
-                                        Picker("分", selection: $selectedMinutes) {
-                                            ForEach(0..<6) { minute in
-                                                Text("\(minute)").tag(minute)
-                                            }
-                                        }
-                                        .pickerStyle(WheelPickerStyle())
-                                        .frame(width: 80, height: 120)
-                                        .clipped()
-                                    }
-                                    
-                                    VStack(spacing: 8) {
-                                        Text("秒")
-                                            .font(.caption)
-                                            .foregroundColor(.gray)
-                                        Picker("秒", selection: $selectedSeconds) {
-                                            ForEach(0..<60) { second in
-                                                Text("\(second)").tag(second)
-                                            }
-                                        }
-                                        .pickerStyle(WheelPickerStyle())
-                                        .frame(width: 80, height: 120)
-                                        .clipped()
-                                    }
-                                    
+                        // Settings Section
+                        Section {
+                            Toggle("時間制限モード", isOn: $useTimeLimit)
+                                .onChange(of: useTimeLimit) { newValue in
+                                    if !newValue { timeLimit = nil }
+                                    else { updateTimeLimit() }
+                                }
+                            
+                            if useTimeLimit {
+                                HStack {
+                                    Text("目標時間")
                                     Spacer()
+                                    Picker("分", selection: $selectedMinutes) {
+                                        ForEach(0..<11) { m in Text("\(m)分").tag(m) }
+                                    }
+                                    .pickerStyle(.menu)
+                                    .onChange(of: selectedMinutes) { _ in updateTimeLimit() }
                                     
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text("合計")
-                                            .font(.caption)
-                                            .foregroundColor(.gray)
-                                        Text("\(selectedMinutes * 60 + selectedSeconds)秒")
-                                            .font(.title2)
+                                    Picker("秒", selection: $selectedSeconds) {
+                                        ForEach(0..<60, id: \.self) { s in Text("\(s)秒").tag(s) }
+                                    }
+                                    .pickerStyle(.menu)
+                                    .onChange(of: selectedSeconds) { _ in updateTimeLimit() }
+                                }
+                                
+                                if let limit = timeLimit, limit > 0, !scriptText.isEmpty {
+                                    HStack {
+                                        Text("自動スクロール速度")
+                                            .foregroundColor(.secondary)
+                                        Spacer()
+                                        Text("約\(Int(calculatedScrollSpeed))px/秒")
                                             .fontWeight(.bold)
                                             .foregroundColor(.blue)
                                     }
-                                    .padding(.leading, 20)
                                 }
-                                .padding(.horizontal)
-                                
-                                let totalSeconds = Double(selectedMinutes * 60 + selectedSeconds)
-                                if totalSeconds > 0 && !scriptText.isEmpty {
+                            } else {
+                                VStack(alignment: .leading) {
                                     HStack {
-                                        Image(systemName: "info.circle.fill")
-                                            .foregroundColor(.blue)
-                                        Text("自動スクロール速度: 約\(Int(calculatedScrollSpeed))px/秒")
-                                            .font(.caption)
+                                        Text("スクロール速度")
+                                        Spacer()
+                                        Text("\(Int(scrollSpeed))")
+                                            .fontWeight(.bold)
                                             .foregroundColor(.blue)
                                     }
-                                    .padding(.horizontal)
-                                    .padding(.vertical, 8)
-                                    .background(Color.blue.opacity(0.1))
-                                    .cornerRadius(8)
-                                    .padding(.horizontal)
+                                    Slider(value: $scrollSpeed, in: 10...100, step: 1)
                                 }
+                                .padding(.vertical, 4)
                             }
-                            .onChange(of: selectedMinutes) { _ in
-                                updateTimeLimit()
-                            }
-                            .onChange(of: selectedSeconds) { _ in
-                                updateTimeLimit()
-                            }
-                        } else {
-                            // 手動速度設定
-                            VStack(alignment: .leading, spacing: 12) {
-                                HStack {
-                                    Text("スクロール速度")
-                                        .font(.headline)
-                                    Spacer()
-                                    Text("\(Int(scrollSpeed))")
-                                        .font(.title3)
-                                        .fontWeight(.bold)
-                                        .foregroundColor(.blue)
-                                }
-                                .padding(.horizontal)
-                                
-                                Slider(value: $scrollSpeed, in: 10...100, step: 1)
-                                    .padding(.horizontal)
-                                
-                                HStack {
-                                    Text("遅い")
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
-                                    Spacer()
-                                    Text("速い")
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
-                                }
-                                .padding(.horizontal)
-                            }
+                        } header: {
+                            Text("スクロール設定")
                         }
                     }
-                    .padding(.vertical, 8)
+                    .listStyle(.insetGrouped)
                     
-                    // 保存ボタン
-                    Button(action: {
-                        saveScript()
-                    }) {
-                        HStack {
-                            Image(systemName: "checkmark.circle.fill")
-                            Text("スクリプトを保存")
+                    // Save Button Area
+                    VStack {
+                        Button(action: saveScript) {
+                            HStack {
+                                Image(systemName: "square.and.arrow.down")
+                                Text("保存する")
+                            }
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(canSave ? Color.blue : Color.gray)
+                            .cornerRadius(12)
                         }
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
+                        .disabled(!canSave)
                         .padding()
-                        .background(scriptTitle.isEmpty || scriptText.isEmpty ? Color.gray : Color.green)
-                        .cornerRadius(12)
                     }
-                    .disabled(scriptTitle.isEmpty || scriptText.isEmpty)
-                    .padding(.horizontal)
-                    .padding(.bottom, 20)
+                    .background(Color(uiColor: .systemBackground))
+                    .shadow(color: Color.black.opacity(0.05), radius: 8, y: -4)
                 }
             }
-            .navigationTitle("スクリプト台本")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationTitle("台本作成")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: { showScriptList = true }) {
+                        Image(systemName: "list.bullet")
+                        Text("一覧")
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: clearScript) {
+                        Text("クリア")
+                    }
+                    .disabled(scriptText.isEmpty && scriptTitle.isEmpty)
+                }
+            }
             .sheet(isPresented: $showScriptList) {
                 ScriptListView(scriptManager: scriptManager, scriptText: $scriptText, scriptTitle: $scriptTitle, timeLimit: $timeLimit, useTimeLimit: $useTimeLimit)
             }
-            .sheet(isPresented: $showAIAssistant) {
-                AIAssistantView(scriptText: $scriptText)
-            }
+            .overlay(
+                // Save Success Message
+                Group {
+                    if showSaveSuccess {
+                        VStack {
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.white)
+                                Text("保存しました")
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.white)
+                            }
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 12)
+                            .background(Capsule().fill(Color.black.opacity(0.8)))
+                            .shadow(radius: 10)
+                            Spacer()
+                        }
+                        .padding(.top, 20)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .zIndex(100)
+                    }
+                }
+            )
             .onReceive(scriptManager.$selectedScript) { newValue in
                 if let script = newValue {
                     scriptText = script.content
@@ -284,31 +206,11 @@ struct ScriptEditView: View {
                     }
                 }
             }
-            .overlay(
-                // 保存成功メッセージ
-                Group {
-                    if showSaveSuccess {
-                        VStack {
-                            HStack {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
-                                Text("保存しました")
-                                    .font(.headline)
-                                    .foregroundColor(.white)
-                            }
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 12)
-                            .background(Color.black.opacity(0.8))
-                            .cornerRadius(10)
-                            .shadow(radius: 10)
-                            Spacer()
-                        }
-                        .padding(.top, 100)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                    }
-                }
-            )
         }
+    }
+    
+    private var canSave: Bool {
+        !scriptTitle.isEmpty && !scriptText.isEmpty
     }
     
     private func updateTimeLimit() {
@@ -316,26 +218,34 @@ struct ScriptEditView: View {
         timeLimit = totalSeconds > 0 ? totalSeconds : nil
     }
     
+    private func clearScript() {
+        scriptTitle = ""
+        scriptText = ""
+        useTimeLimit = false
+        timeLimit = nil
+        // Reset defaults if needed
+        selectedMinutes = 1
+        selectedSeconds = 0
+    }
+    
     private func saveScript() {
-        guard !scriptTitle.isEmpty && !scriptText.isEmpty else {
-            return
-        }
+        guard canSave else { return }
         
+        // Save logic...
         let totalSeconds = useTimeLimit ? Double(selectedMinutes * 60 + selectedSeconds) : nil
         let script = Script(title: scriptTitle, content: scriptText, timeLimit: totalSeconds)
         scriptManager.addScript(script)
         
-        // 保存成功のフィードバック
-        withAnimation {
-            showSaveSuccess = true
-        }
-        
-        // 2秒後に非表示
+        // Success feedback
+        withAnimation { showSaveSuccess = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-            withAnimation {
-                showSaveSuccess = false
-            }
+            withAnimation { showSaveSuccess = false }
         }
     }
 }
 
+extension View {
+    func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+}

@@ -6,34 +6,57 @@
 //
 
 import SwiftUI
+import StoreKit
 
 struct SettingsView: View {
     @Environment(\.dismiss) var dismiss
     
-    // プライバシーポリシーと利用規約のURL（Notionページ）
-    private let privacyPolicyURL: String? = "https://www.notion.so/RecMe-2f2792f57df980d28d7de0fd9910855a"
-    private let termsOfServiceURL: String? = "https://www.notion.so/RecMe-2f2792f57df980d28d7de0fd9910855a"
-    private let githubURL: String? = nil // "https://github.com/your-username/your-repo"
+    // プライバシーポリシーと利用規約のURL（GitHub Pages）
+    private let privacyPolicyURL: String? = "https://shuma0408.github.io/RecMe/privacy.html"
+    private let termsOfServiceURL: String? = "https://shuma0408.github.io/RecMe/terms.html"
+    
+    // サポートメールアドレス
+    private let supportEmail = "ss.app.dev0@gmail.com"
     
     var body: some View {
         NavigationView {
             List {
-                Section(header: Text("アプリ情報")) {
-                    HStack {
-                        Text("バージョン")
-                        Spacer()
-                        Text("1.0")
-                            .foregroundColor(.gray)
+                // サポートセクション
+                Section(header: Text("サポート")) {
+                    Button(action: {
+                        if let url = URL(string: "mailto:\(supportEmail)") {
+                            UIApplication.shared.open(url)
+                        }
+                    }) {
+                        HStack {
+                            Image(systemName: "envelope.fill")
+                                .foregroundColor(.blue)
+                            Text("サポートに問い合わせる")
+                                .foregroundColor(.primary)
+                        }
                     }
                     
-                    HStack {
-                        Text("ビルド")
-                        Spacer()
-                        Text("1")
-                            .foregroundColor(.gray)
+                    Button(action: {
+                         requestReview()
+                    }) {
+                        HStack {
+                            Image(systemName: "star.fill")
+                                .foregroundColor(.yellow)
+                            Text("アプリを評価する")
+                                .foregroundColor(.primary)
+                        }
+                    }
+                    
+                    NavigationLink(destination: FAQView()) {
+                        HStack {
+                            Image(systemName: "questionmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("よくある質問")
+                        }
                     }
                 }
                 
+                // 法的情報セクション
                 Section(header: Text("法的情報")) {
                     if let privacyURL = privacyPolicyURL, let url = URL(string: privacyURL) {
                         Link(destination: url) {
@@ -41,16 +64,8 @@ struct SettingsView: View {
                                 Text("プライバシーポリシー")
                                 Spacer()
                                 Image(systemName: "arrow.up.right.square")
-                                    .foregroundColor(.blue)
+                                    .foregroundColor(.gray)
                             }
-                        }
-                    } else {
-                        HStack {
-                            Text("プライバシーポリシー")
-                            Spacer()
-                            Text("未設定")
-                                .foregroundColor(.gray)
-                                .font(.caption)
                         }
                     }
                     
@@ -60,52 +75,8 @@ struct SettingsView: View {
                                 Text("利用規約")
                                 Spacer()
                                 Image(systemName: "arrow.up.right.square")
-                                    .foregroundColor(.blue)
+                                    .foregroundColor(.gray)
                             }
-                        }
-                    } else {
-                        HStack {
-                            Text("利用規約")
-                            Spacer()
-                            Text("未設定")
-                                .foregroundColor(.gray)
-                                .font(.caption)
-                        }
-                    }
-                }
-                
-                Section(header: Text("開発")) {
-                    if let github = githubURL, let url = URL(string: github) {
-                        Link(destination: url) {
-                            HStack {
-                                Image(systemName: "link")
-                                Text("GitHub")
-                                Spacer()
-                                Image(systemName: "arrow.up.right.square")
-                                    .foregroundColor(.blue)
-                            }
-                        }
-                    } else {
-                        HStack {
-                            Image(systemName: "link")
-                            Text("GitHub")
-                            Spacer()
-                            Text("未設定")
-                                .foregroundColor(.gray)
-                                .font(.caption)
-                        }
-                    }
-                }
-                
-                Section(header: Text("サポート")) {
-                    Button(action: {
-                        if let url = URL(string: "mailto:support@your-domain.com") {
-                            UIApplication.shared.open(url)
-                        }
-                    }) {
-                        HStack {
-                            Image(systemName: "envelope")
-                            Text("お問い合わせ")
                         }
                     }
                 }
@@ -119,6 +90,14 @@ struct SettingsView: View {
                     }
                 }
             }
+        }
+    }
+    
+    private func requestReview() {
+        // App Storeのレビューページを開く、またはアプリ内レビューをリクエスト
+        // ここでは簡易的にアプリ内レビューをリクエスト
+        if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
+            SKStoreReviewController.requestReview(in: scene)
         }
     }
 }

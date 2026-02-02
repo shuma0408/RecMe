@@ -11,61 +11,58 @@ import Photos
 
 struct VideoListView: View {
     @State private var videos: [VideoItem] = []
-    @State private var showExportSheet: Bool = false
     @State private var selectedVideo: VideoItem?
     @State private var selectedPreset: ExportPreset = .mynavi
     @State private var isExporting: Bool = false
     @Environment(\.dismiss) var dismiss
     
-    // グリッドレイアウトの列数（写真アプリ風）
+    // Photos app style grid: 3 columns, 1pt spacing
     private let columns = [
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2)
+        GridItem(.flexible(), spacing: 1),
+        GridItem(.flexible(), spacing: 1),
+        GridItem(.flexible(), spacing: 1)
     ]
     
     var body: some View {
         NavigationView {
-            ZStack {
-                Color(.systemBackground)
-                    .ignoresSafeArea()
-                
-                if videos.isEmpty {
-                    VStack(spacing: 20) {
-                        Image(systemName: "video.slash")
-                            .font(.system(size: 60))
-                            .foregroundColor(.gray)
-                        Text("録画された動画がありません")
-                            .font(.headline)
-                            .foregroundColor(.gray)
-                    }
-                } else {
-                    ScrollView {
-                        LazyVGrid(columns: columns, spacing: 2) {
-                            ForEach(videos) { video in
-                                VideoGridItem(video: video)
-                                    .aspectRatio(1, contentMode: .fill)
-                                    .clipped()
-                                    .contentShape(Rectangle())
-                                    .onTapGesture {
-                                        selectedVideo = video
-                                    }
-                            }
+            GeometryReader { geometry in
+                ZStack {
+                    Color(.systemBackground)
+                        .ignoresSafeArea()
+                    
+                    if videos.isEmpty {
+                        VStack(spacing: 20) {
+                            Image(systemName: "photo.on.rectangle.angled")
+                                .font(.system(size: 60))
+                                .foregroundColor(Color(.systemGray4))
+                            Text("写真やビデオがありません")
+                                .font(.headline)
+                                .foregroundColor(.secondary)
                         }
-                        .padding(.horizontal, 2)
-                    }
-                    .refreshable {
-                        loadVideos()
+                    } else {
+                        ScrollView {
+                            LazyVGrid(columns: columns, spacing: 1) {
+                                ForEach(videos) { video in
+                                    VideoGridItem(video: video)
+                                        .frame(height: geometry.size.width / 3) // Make it square
+                                        .onTapGesture {
+                                            selectedVideo = video
+                                        }
+                                }
+                            }
+                            .padding(.bottom, 20) // Add some bottom padding
+                        }
                     }
                 }
             }
-            .navigationTitle("録画一覧")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationTitle("アルバム")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("完了") {
                         dismiss()
                     }
+                    .fontWeight(.bold)
                 }
             }
             .onAppear {
@@ -79,13 +76,11 @@ struct VideoListView: View {
                     onDelete: {
                         deleteVideo(video)
                         selectedVideo = nil
-                        // リストを再読み込み
                         loadVideos()
                     }
                 )
             }
             .onChange(of: selectedVideo) { newValue in
-                // ビデオ詳細が閉じられたときにリストを更新
                 if newValue == nil {
                     loadVideos()
                 }
@@ -105,7 +100,7 @@ struct VideoListView: View {
                     let date = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date()
                     return VideoItem(url: url, size: size, date: date)
                 }
-                .sorted { $0.date > $1.date }
+                .sorted { $0.date > $1.date } // Keep newest first for convenience, even if Photos is bottom-heavy
         } catch {
             print("ビデオの読み込みエラー: \(error)")
         }
@@ -113,10 +108,6 @@ struct VideoListView: View {
     
     private func deleteVideo(_ video: VideoItem) {
         try? FileManager.default.removeItem(at: video.url)
-        loadVideos()
-    }
-    
-    private func reloadVideos() {
         loadVideos()
     }
 }
@@ -131,56 +122,11 @@ struct VideoItem: Identifiable, Equatable {
         self.url = url
         self.size = size
         self.date = date
-        // URLをIDとして使用（一意性を保証）
         self.id = url.absoluteString
     }
     
     static func == (lhs: VideoItem, rhs: VideoItem) -> Bool {
         return lhs.id == rhs.id
-    }
-}
-
-struct VideoRow: View {
-    let video: VideoItem
-    
-    var body: some View {
-        HStack {
-            // サムネイル
-            VideoThumbnailView(url: video.url)
-                .frame(width: 80, height: 60)
-                .cornerRadius(8)
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(video.url.lastPathComponent)
-                    .font(.headline)
-                    .lineLimit(1)
-                
-                Text(formatFileSize(video.size))
-                    .font(.caption)
-                    .foregroundColor(.gray)
-                
-                Text(formatDate(video.date))
-                    .font(.caption)
-                    .foregroundColor(.gray)
-            }
-            
-            Spacer()
-        }
-        .padding(.vertical, 4)
-    }
-    
-    private func formatFileSize(_ bytes: Int64) -> String {
-        let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useMB, .useKB]
-        formatter.countStyle = .file
-        return formatter.string(fromByteCount: bytes)
-    }
-    
-    private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
     }
 }
 
@@ -191,45 +137,38 @@ struct VideoGridItem: View {
     
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            // サムネイル
-            if let thumbnail = thumbnail {
-                Image(uiImage: thumbnail)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .clipped()
-            } else {
-                Color(.systemGray5)
-                    .overlay(
-                        ProgressView()
-                            .scaleEffect(0.8)
-                    )
-            }
-            
-            // 動画アイコンと時間
-            HStack(spacing: 4) {
-                Image(systemName: "play.circle.fill")
-                    .font(.caption)
-                    .foregroundColor(.white)
-                
-                if let duration = videoDuration {
-                    Text(formatDuration(duration))
-                        .font(.caption2)
-                        .foregroundColor(.white)
+            // Thumbnail
+            GeometryReader { geo in
+                if let thumbnail = thumbnail {
+                    Image(uiImage: thumbnail)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: geo.size.width, height: geo.size.height)
+                        .clipped()
+                } else {
+                    Color(.systemGray5)
+                        .overlay(
+                            Image(systemName: "video")
+                                .foregroundColor(.gray)
+                        )
                 }
             }
-            .padding(6)
-            .background(Color.black.opacity(0.6))
-            .cornerRadius(4)
-            .padding(4)
+            
+            // Duration overlay (Photos style)
+            if let duration = videoDuration {
+                Text(formatDuration(duration))
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 2)
+                    .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1) // Text shadow for visibility
+                    .padding(4)
+            }
         }
+        .contentShape(Rectangle()) // Ensure tap target covers entire cell
         .onAppear {
-            if thumbnail == nil {
-                loadThumbnail()
-            }
-            if videoDuration == nil {
-                loadDuration()
-            }
+            if thumbnail == nil { loadThumbnail() }
+            if videoDuration == nil { loadDuration() }
         }
     }
     
@@ -269,35 +208,8 @@ struct VideoGridItem: View {
     }
 }
 
-struct VideoThumbnailView: View {
-    let url: URL
-    
-    var body: some View {
-        Group {
-            if let thumbnail = generateThumbnail() {
-                Image(uiImage: thumbnail)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } else {
-                Color.gray
-            }
-        }
-    }
-    
-    private func generateThumbnail() -> UIImage? {
-        let asset = AVAsset(url: url)
-        let imageGenerator = AVAssetImageGenerator(asset: asset)
-        imageGenerator.appliesPreferredTrackTransform = true
-        
-        do {
-            let cgImage = try imageGenerator.copyCGImage(at: CMTime.zero, actualTime: nil)
-            return UIImage(cgImage: cgImage)
-        } catch {
-            return nil
-        }
-    }
-}
-
+// Keeping VideoDetailView generally as is, but could be polished further.
+// Included here to ensure the file compiles complete.
 struct VideoDetailView: View {
     let video: VideoItem
     @Binding var selectedPreset: ExportPreset
@@ -312,98 +224,105 @@ struct VideoDetailView: View {
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 20) {
-                // ビデオプレーヤー
+            VStack(spacing: 0) {
+                // Video Player
                 if let player = player {
                     VideoPlayer(player: player)
-                        .frame(height: 300)
+                        .aspectRatio(contentMode: .fit) // Ensure aspect ratio is respected
+                        .frame(maxWidth: .infinity)
+                        .background(Color.black)
                         .onAppear {
                             player.play()
                         }
+                } else {
+                    Rectangle()
+                        .fill(Color.black)
+                        .aspectRatio(16/9, contentMode: .fit)
                 }
                 
-                // エクスポート設定
-                VStack(alignment: .leading, spacing: 15) {
-                    Text("提出形式を選択")
-                        .font(.headline)
-                    
-                    Picker("プリセット", selection: $selectedPreset) {
-                        ForEach(ExportPreset.allCases) { preset in
-                            HStack {
-                                Text(preset.rawValue)
-                                Spacer()
-                                Text("最大\(preset.maxFileSizeMB)MB")
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-                            }
-                            .tag(preset)
-                        }
-                    }
-                    .pickerStyle(MenuPickerStyle())
-                    
-                    Button(action: {
-                        exportVideo()
-                    }) {
+                // Controls
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        
+                        // Metadata
                         HStack {
-                            if isExporting {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            VStack(alignment: .leading) {
+                                Text(formatDate(video.date))
+                                    .font(.headline)
+                                Text(formatFileSize(video.size))
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
                             }
-                            Text(isExporting ? "エクスポート中..." : "エクスポート")
+                            Spacer()
                         }
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(isExporting ? Color.gray : Color.blue)
-                        .cornerRadius(10)
-                    }
-                    .disabled(isExporting)
-                    
-                    if let exportedURL = exportedURL {
-                        Button(action: {
-                            showShareSheet = true
-                        }) {
-                            Text("共有")
+                        .padding(.top)
+                        
+                        Divider()
+                        
+                        // Export Section
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("提出用書き出し")
                                 .font(.headline)
-                                .foregroundColor(.white)
+                            
+                            Picker("プリセット", selection: $selectedPreset) {
+                                ForEach(ExportPreset.allCases) { preset in
+                                    Text("\(preset.rawValue) (max \(preset.maxFileSizeMB)MB)").tag(preset)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            
+                            Button(action: { exportVideo() }) {
+                                HStack {
+                                    if isExporting {
+                                        ProgressView()
+                                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                            .padding(.trailing, 8)
+                                    }
+                                    Text(isExporting ? "書き出し中..." : "書き出し")
+                                        .fontWeight(.bold)
+                                }
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                                .background(Color.green)
-                                .cornerRadius(10)
+                                .background(isExporting ? Color.gray : Color.blue)
+                                .foregroundColor(.white)
+                                .cornerRadius(12)
+                            }
+                            .disabled(isExporting)
                         }
-                        .sheet(isPresented: $showShareSheet) {
-                            ShareSheet(items: [exportedURL])
+                        
+                        if let exportedURL = exportedURL {
+                            Button(action: { showShareSheet = true }) {
+                                Label("共有する", systemImage: "square.and.arrow.up")
+                                    .font(.headline)
+                                    .padding()
+                                    .frame(maxWidth: .infinity)
+                                    .background(Color.green)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(12)
+                            }
+                            .sheet(isPresented: $showShareSheet) {
+                                ShareSheet(items: [exportedURL])
+                            }
+                        }
+                        
+                        Divider()
+                        
+                        // Danger Zone
+                        Button(action: { showDeleteAlert = true }) {
+                            Label("このビデオを削除", systemImage: "trash")
+                                .foregroundColor(.red)
+                                .padding()
+                                .frame(maxWidth: .infinity)
                         }
                     }
-                    
-                    // 削除ボタン
-                    Button(action: {
-                        showDeleteAlert = true
-                    }) {
-                        HStack {
-                            Image(systemName: "trash")
-                            Text("削除")
-                        }
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.red)
-                        .cornerRadius(10)
-                    }
+                    .padding()
                 }
-                .padding()
-                
-                Spacer()
             }
-            .navigationTitle("ビデオ詳細")
+            .navigationTitle("詳細")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("閉じる") {
-                        dismiss()
-                    }
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("閉じる") { dismiss() }
                 }
             }
             .alert("動画を削除", isPresented: $showDeleteAlert) {
@@ -413,7 +332,7 @@ struct VideoDetailView: View {
                     dismiss()
                 }
             } message: {
-                Text("この動画を削除しますか？この操作は取り消せません。")
+                Text("この操作は取り消せません。")
             }
             .onAppear {
                 player = AVPlayer(url: video.url)
@@ -434,6 +353,20 @@ struct VideoDetailView: View {
                 }
             }
         }
+    }
+    
+    private func formatFileSize(_ bytes: Int64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useMB, .useKB]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: bytes)
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
     }
 }
 
