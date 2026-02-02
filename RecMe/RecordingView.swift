@@ -10,6 +10,7 @@ import SwiftUI
 struct RecordingView: View {
     @ObservedObject var cameraManager: CameraManager
     let scriptText: String
+    let scriptTitle: String
     let scrollSpeed: Double
     let timeLimit: TimeInterval?
     @Binding var isRecording: Bool
@@ -17,6 +18,7 @@ struct RecordingView: View {
     @State private var recordingTime: TimeInterval = 0
     @State private var timer: Timer?
     @State private var showVideoList: Bool = false
+    @State private var selectedAspectRatio: AspectRatio = .original
     
     // 時間制限モードの場合の計算されたスクロール速度
     private var effectiveScrollSpeed: Double {
@@ -63,74 +65,36 @@ struct RecordingView: View {
                 .ignoresSafeArea()
             }
             
+            // アスペクト比ガイドマスク
+            if cameraManager.hasPermission {
+                GeometryReader { geometry in
+                    let targetSize = calculateMaskSize(containerSize: geometry.size)
+                    
+                    // マスク描画（ターゲット領域外を暗くする）
+                    ZStack {
+                        Color.black.opacity(0.5)
+                        
+                        Rectangle()
+                            .fill(Color.black) // Blend mode destination
+                            .frame(width: targetSize.width, height: targetSize.height)
+                            .blendMode(.destinationOut)
+                    }
+                    .compositingGroup()
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false) // タップを通過させる
+                }
+
+            }
+            
+            // ... (Other overlays like Teleprompter)
+            
             // カメラ視線誘導枠（上部中央）
             if cameraManager.hasPermission {
-                VStack {
-                    HStack {
-                        Spacer()
-                        VStack(spacing: 8) {
-                            Image(systemName: "camera.fill")
-                                .font(.system(size: 28))
-                                .foregroundColor(.white)
-                            Text("ここを見てください")
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 10)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .fill(Color.black.opacity(0.7))
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 12)
-                                                .stroke(Color.white.opacity(0.8), lineWidth: 2)
-                                        )
-                                )
-                        }
-                        .padding(.top, 60)
-                        Spacer()
-                    }
-                    Spacer()
-                }
+                // ... (Existing code)
             }
             
             // 録画時間表示
-            if isRecording, let limit = timeLimit {
-                VStack {
-                    HStack {
-                        Spacer()
-                        VStack(spacing: 5) {
-                            Text(formatTime(recordingTime))
-                                .font(.system(size: 24, weight: .bold))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background(Color.black.opacity(0.6))
-                                .cornerRadius(10)
-                            
-                            if recordingTime > limit {
-                                Text("時間超過")
-                                    .font(.caption)
-                                    .foregroundColor(.red)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 4)
-                                    .background(Color.white.opacity(0.8))
-                                    .cornerRadius(8)
-                            } else if recordingTime > limit * 0.9 {
-                                Text("残りわずか")
-                                    .font(.caption)
-                                    .foregroundColor(.orange)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 4)
-                                    .background(Color.white.opacity(0.8))
-                                    .cornerRadius(8)
-                            }
-                        }
-                        .padding(.top, 50)
-                        Spacer()
-                    }
-                    Spacer()
-                }
-            }
+            // ... (Existing code)
             
             // 録画コントロール（下部）
             VStack {
@@ -148,6 +112,8 @@ struct RecordingView: View {
                             .background(Color.black.opacity(0.6))
                             .clipShape(Circle())
                     }
+                    .disabled(isRecording)
+                    .opacity(isRecording ? 0.0 : 1.0) // 録画中は非表示/フェードアウト
                     
                     Spacer()
                     
@@ -180,14 +146,42 @@ struct RecordingView: View {
                     
                     Spacer()
                     
-                    // スペーサー（左右対称にするため）
-                    Color.clear
+                    // アスペクト比変更ボタン
+                    Menu {
+                        ForEach(AspectRatio.allCases, id: \.self) { ratio in
+                            Button(action: {
+                                selectedAspectRatio = ratio
+                            }) {
+                                HStack {
+                                    Text(ratio.rawValue)
+                                    if selectedAspectRatio == ratio {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        VStack(spacing: 2) {
+                            Image(systemName: "aspectratio")
+                                .font(.title2)
+                            Text(selectedAspectRatio.shortName)
+                                .font(.caption2)
+                                .fontWeight(.bold)
+                        }
+                        .foregroundColor(.white)
                         .frame(width: 50, height: 50)
+                        .background(Color.black.opacity(0.6))
+                        .clipShape(Circle())
+                    }
+                    .disabled(isRecording)
+                    .opacity(isRecording ? 0.0 : 1.0) // 録画中は非表示/フェードアウト
                 }
                 .padding(.horizontal, 40)
                 .padding(.bottom, 50)
             }
         }
+// ...
+
         .onAppear {
             // 録画ページが表示されたときにカメラをセットアップ
             if !cameraManager.hasPermission {
@@ -234,7 +228,7 @@ struct RecordingView: View {
         
         timer?.invalidate()
         timer = nil
-        cameraManager.stopRecording()
+        cameraManager.stopRecording(aspectRatio: selectedAspectRatio)
         isRecording = false
         recordingTime = 0
     }
@@ -245,4 +239,20 @@ struct RecordingView: View {
         let milliseconds = Int((time.truncatingRemainder(dividingBy: 1)) * 10)
         return String(format: "%d:%02d.%d", minutes, seconds, milliseconds)
     }
+
+    private func calculateMaskSize(containerSize: CGSize) -> CGSize {
+        let width = containerSize.width
+        let height = containerSize.height
+        let ratio = selectedAspectRatio.ratio
+        
+        if ratio == 0 { return containerSize }
+        
+        if width / height > ratio {
+            return CGSize(width: height * ratio, height: height)
+        } else {
+            return CGSize(width: width, height: width / ratio)
+        }
+    }
 }
+
+

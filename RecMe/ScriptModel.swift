@@ -28,30 +28,4 @@ struct Script: Identifiable, Codable, Equatable {
     }
 }
 
-// 企業別エクスポートプリセット
-enum ExportPreset: String, CaseIterable, Identifiable {
-    case mynavi = "マイナビ"
-    case openES = "OpenES"
-    case line = "LINE送信"
-    case custom = "カスタム"
-    
-    var id: String { rawValue }
-    
-    var maxFileSizeMB: Int {
-        switch self {
-        case .mynavi: return 20
-        case .openES: return 30
-        case .line: return 10
-        case .custom: return 50
-        }
-    }
-    
-    var videoQuality: String {
-        switch self {
-        case .mynavi: return "中"
-        case .openES: return "高"
-        case .line: return "低"
-        case .custom: return "高"
-        }
-    }
-}
+

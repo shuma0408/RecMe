@@ -12,7 +12,7 @@ import Photos
 struct VideoListView: View {
     @State private var videos: [VideoItem] = []
     @State private var selectedVideo: VideoItem?
-    @State private var selectedPreset: ExportPreset = .mynavi
+
     @State private var isExporting: Bool = false
     @Environment(\.dismiss) var dismiss
     
@@ -46,7 +46,9 @@ struct VideoListView: View {
                                     VideoGridItem(video: video)
                                         .frame(height: geometry.size.width / 3) // Make it square
                                         .onTapGesture {
+
                                             selectedVideo = video
+                                            isDetailPresented = true
                                         }
                                 }
                             }
@@ -55,6 +57,7 @@ struct VideoListView: View {
                     }
                 }
             }
+
             .navigationTitle("アルバム")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -68,25 +71,23 @@ struct VideoListView: View {
             .onAppear {
                 loadVideos()
             }
-            .sheet(item: $selectedVideo) { video in
-                VideoDetailView(
-                    video: video,
-                    selectedPreset: $selectedPreset,
+            .fullScreenCover(isPresented: $isDetailPresented) {
+                VideoPagerView(
+                    videos: videos,
+                    selectedVideo: $selectedVideo,
                     isExporting: $isExporting,
-                    onDelete: {
+                    onDelete: { video in
                         deleteVideo(video)
-                        selectedVideo = nil
-                        loadVideos()
+                        if videos.isEmpty {
+                            isDetailPresented = false
+                        }
                     }
                 )
             }
-            .onChange(of: selectedVideo) { newValue in
-                if newValue == nil {
-                    loadVideos()
-                }
-            }
         }
     }
+    
+    @State private var isDetailPresented: Bool = false
     
     private func loadVideos() {
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -98,7 +99,23 @@ struct VideoListView: View {
                     let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
                     let size = attributes?[.size] as? Int64 ?? 0
                     let date = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date()
-                    return VideoItem(url: url, size: size, date: date)
+                    
+                    // Parse title from filename: video_{TITLE}_{TIMESTAMP}.mov
+                    var title: String? = nil
+                    let filename = url.deletingPathExtension().lastPathComponent
+                    if filename.starts(with: "video_") {
+                        let content = String(filename.dropFirst(6)) // Remove "video_"
+                        // Find the last underscore which separates title from timestamp
+                        if let lastUnderscoreRange = content.range(of: "_", options: .backwards) {
+                            let possibleTitle = String(content[..<lastUnderscoreRange.lowerBound])
+                            // Simple validation to ensure it's not just a timestamp part (though timestamp is usually at the end)
+                            if !possibleTitle.isEmpty {
+                                title = possibleTitle.replacingOccurrences(of: "_", with: " ")
+                            }
+                        }
+                    }
+                    
+                    return VideoItem(url: url, size: size, date: date, title: title)
                 }
                 .sorted { $0.date > $1.date } // Keep newest first for convenience, even if Photos is bottom-heavy
         } catch {
@@ -112,16 +129,18 @@ struct VideoListView: View {
     }
 }
 
-struct VideoItem: Identifiable, Equatable {
+struct VideoItem: Identifiable, Equatable, Hashable {
     let id: String
     let url: URL
     let size: Int64
     let date: Date
+    let title: String?
     
-    init(url: URL, size: Int64, date: Date) {
+    init(url: URL, size: Int64, date: Date, title: String? = nil) {
         self.url = url
         self.size = size
         self.date = date
+        self.title = title
         self.id = url.absoluteString
     }
     
@@ -212,14 +231,13 @@ struct VideoGridItem: View {
 // Included here to ensure the file compiles complete.
 struct VideoDetailView: View {
     let video: VideoItem
-    @Binding var selectedPreset: ExportPreset
+
     @Binding var isExporting: Bool
     let onDelete: () -> Void
     @Environment(\.dismiss) var dismiss
     
     @State private var player: AVPlayer?
-    @State private var showShareSheet: Bool = false
-    @State private var exportedURL: URL?
+
     @State private var showDeleteAlert: Bool = false
     
     var body: some View {
@@ -246,9 +264,16 @@ struct VideoDetailView: View {
                         
                         // Metadata
                         HStack {
-                            VStack(alignment: .leading) {
+                            VStack(alignment: .leading, spacing: 5) {
+                                if let title = video.title {
+                                    Text(title)
+                                        .font(.title3)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(AppTheme.primaryTextColor)
+                                }
                                 Text(formatDate(video.date))
-                                    .font(.headline)
+                                    .font(video.title != nil ? .subheadline : .headline)
+                                    .foregroundColor(video.title != nil ? .secondary : .primary)
                                 Text(formatFileSize(video.size))
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
@@ -261,48 +286,23 @@ struct VideoDetailView: View {
                         
                         // Export Section
                         VStack(alignment: .leading, spacing: 10) {
-                            Text("提出用書き出し")
-                                .font(.headline)
-                            
-                            Picker("プリセット", selection: $selectedPreset) {
-                                ForEach(ExportPreset.allCases) { preset in
-                                    Text("\(preset.rawValue) (max \(preset.maxFileSizeMB)MB)").tag(preset)
-                                }
-                            }
-                            .pickerStyle(.segmented)
-                            
-                            Button(action: { exportVideo() }) {
+                            Button(action: { saveToCameraRoll() }) {
                                 HStack {
                                     if isExporting {
                                         ProgressView()
                                             .progressViewStyle(CircularProgressViewStyle(tint: .white))
                                             .padding(.trailing, 8)
                                     }
-                                    Text(isExporting ? "書き出し中..." : "書き出し")
+                                    Text(isExporting ? "保存中..." : "カメラロールに保存")
                                         .fontWeight(.bold)
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                                .background(isExporting ? Color.gray : Color.blue)
+                                .background(isExporting ? Color.gray : AppTheme.primaryColor)
                                 .foregroundColor(.white)
                                 .cornerRadius(12)
                             }
                             .disabled(isExporting)
-                        }
-                        
-                        if let exportedURL = exportedURL {
-                            Button(action: { showShareSheet = true }) {
-                                Label("共有する", systemImage: "square.and.arrow.up")
-                                    .font(.headline)
-                                    .padding()
-                                    .frame(maxWidth: .infinity)
-                                    .background(Color.green)
-                                    .foregroundColor(.white)
-                                    .cornerRadius(12)
-                            }
-                            .sheet(isPresented: $showShareSheet) {
-                                ShareSheet(items: [exportedURL])
-                            }
                         }
                         
                         Divider()
@@ -334,22 +334,30 @@ struct VideoDetailView: View {
             } message: {
                 Text("この操作は取り消せません。")
             }
+            .alert(alertMessage, isPresented: $showAlert) {
+                Button("OK", role: .cancel) { }
+            }
             .onAppear {
                 player = AVPlayer(url: video.url)
             }
         }
     }
     
-    private func exportVideo() {
+    @State private var showAlert = false
+    @State private var alertMessage = ""
+    
+    private func saveToCameraRoll() {
         isExporting = true
-        VideoExportManager.shared.exportVideo(inputURL: video.url, preset: selectedPreset) { result in
+        VideoExportManager.shared.saveToPhotoLibrary(url: video.url) { result in
             DispatchQueue.main.async {
                 isExporting = false
                 switch result {
-                case .success(let url):
-                    exportedURL = url
+                case .success:
+                    alertMessage = "カメラロールに保存しました"
+                    showAlert = true
                 case .failure(let error):
-                    print("エクスポートエラー: \(error)")
+                    alertMessage = "保存に失敗しました: \(error.localizedDescription)"
+                    showAlert = true
                 }
             }
         }
@@ -370,12 +378,34 @@ struct VideoDetailView: View {
     }
 }
 
-struct ShareSheet: UIViewControllerRepresentable {
-    let items: [Any]
+
+
+struct VideoPagerView: View {
+    let videos: [VideoItem]
+    @Binding var selectedVideo: VideoItem?
+    @Binding var isExporting: Bool
+    let onDelete: (VideoItem) -> Void
+    @Environment(\.dismiss) var dismiss
     
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    var body: some View {
+        TabView(selection: $selectedVideo) {
+            ForEach(videos) { video in
+                VideoDetailView(
+                    video: video,
+                    isExporting: $isExporting,
+                    onDelete: {
+                        onDelete(video)
+                    }
+                )
+                .tag(video as VideoItem?)
+            }
+        }
+        .tabViewStyle(.page(indexDisplayMode: .always))
+        .background(Color.black.ignoresSafeArea())
+        .onAppear {
+            if selectedVideo == nil, let first = videos.first {
+                selectedVideo = first
+            }
+        }
     }
-    
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }

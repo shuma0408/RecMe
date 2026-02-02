@@ -10,10 +10,10 @@ import SwiftUI
 struct ScriptEditView: View {
     @StateObject private var scriptManager = ScriptManager()
     @Binding var scriptText: String
+    @Binding var scriptTitle: String
     @Binding var scrollSpeed: Double
     @Binding var timeLimit: TimeInterval?
     
-    @State private var scriptTitle: String = ""
     @State private var useTimeLimit: Bool = false
     @State private var selectedMinutes: Int = 1
     @State private var selectedSeconds: Int = 0
@@ -107,7 +107,7 @@ struct ScriptEditView: View {
                                         Spacer()
                                         Text("約\(Int(calculatedScrollSpeed))px/秒")
                                             .fontWeight(.bold)
-                                            .foregroundColor(.blue)
+                                            .foregroundColor(AppTheme.primaryColor)
                                     }
                                 }
                             } else {
@@ -117,9 +117,10 @@ struct ScriptEditView: View {
                                         Spacer()
                                         Text("\(Int(scrollSpeed))")
                                             .fontWeight(.bold)
-                                            .foregroundColor(.blue)
+                                            .foregroundColor(AppTheme.primaryColor)
                                     }
                                     Slider(value: $scrollSpeed, in: 10...100, step: 1)
+                                        .accentColor(AppTheme.primaryColor) // Slider accent
                                 }
                                 .padding(.vertical, 4)
                             }
@@ -140,7 +141,7 @@ struct ScriptEditView: View {
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(canSave ? Color.blue : Color.gray)
+                            .background(canSave ? AppTheme.primaryColor : Color.gray)
                             .cornerRadius(12)
                         }
                         .disabled(!canSave)

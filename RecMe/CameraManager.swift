@@ -140,7 +140,7 @@ class CameraManager: NSObject, ObservableObject {
         }
     }
     
-    func startRecording() {
+    func startRecording(scriptTitle: String? = nil) {
         guard !isRecording else { return }
         guard captureSession.isRunning else {
             print("カメラセッションが実行されていません")
@@ -167,7 +167,16 @@ class CameraManager: NSObject, ObservableObject {
         }
         
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let videoPath = documentsPath.appendingPathComponent("video_\(Date().timeIntervalSince1970).mov")
+        let timestamp = Date().timeIntervalSince1970
+        let filename: String
+        if let title = scriptTitle, !title.isEmpty {
+            let sanitizedTitle = title.components(separatedBy: .init(charactersIn: "/\\?%*|\"<>:")).joined(separator: "_")
+            filename = "video_\(sanitizedTitle)_\(timestamp).mov"
+        } else {
+            filename = "video_\(timestamp).mov"
+        }
+        
+        let videoPath = documentsPath.appendingPathComponent(filename)
         
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
@@ -178,8 +187,11 @@ class CameraManager: NSObject, ObservableObject {
         }
     }
     
-    func stopRecording() {
+    private var targetAspectRatio: AspectRatio = .original
+    
+    func stopRecording(aspectRatio: AspectRatio = .original) {
         guard isRecording else { return }
+        self.targetAspectRatio = aspectRatio
         
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
@@ -187,6 +199,88 @@ class CameraManager: NSObject, ObservableObject {
                 self.movieFileOutput.stopRecording()
             }
             self.isRecording = false
+        }
+    }
+    
+    private func cropVideo(sourceURL: URL, aspectRatio: AspectRatio, completion: @escaping (URL?) -> Void) {
+        let asset = AVAsset(url: sourceURL)
+        
+        // 映像トラックを取得
+        guard let track = asset.tracks(withMediaType: .video).first else {
+            completion(nil)
+            return
+        }
+        
+        let composition = AVMutableVideoComposition()
+        // トラックの自然なサイズと変換を取得して、レンダリングサイズを決定
+        let trackSize = track.naturalSize
+        let transform = track.preferredTransform
+        
+        // 変換後のサイズを計算（回転を考慮）
+        let videoSize: CGSize
+        if (transform.a == 0 && transform.b == 1.0 && transform.c == -1.0 && transform.d == 0) || // Portrait
+           (transform.a == 0 && transform.b == -1.0 && transform.c == 1.0 && transform.d == 0) { // PortraitUpsideDown
+            videoSize = CGSize(width: trackSize.height, height: trackSize.width)
+        } else {
+            videoSize = trackSize
+        }
+        
+        let width = videoSize.width
+        let height = videoSize.height
+        let targetRatio = aspectRatio.ratio
+        
+        var newWidth = width
+        var newHeight = height
+        
+        if width / height > targetRatio {
+            newWidth = height * targetRatio
+        } else {
+            newHeight = width / targetRatio
+        }
+        
+        composition.renderSize = CGSize(width: newWidth, height: newHeight)
+        composition.frameDuration = CMTime(value: 1, timescale: 30)
+        
+        let instruction = AVMutableVideoCompositionInstruction()
+        instruction.timeRange = CMTimeRange(start: .zero, duration: asset.duration)
+        
+        let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: track)
+        
+        // センタークロップのためのオフセット計算
+        let xOffset = (width - newWidth) / 2
+        let yOffset = (height - newHeight) / 2
+        
+        // 変換行列の構築: 回転(preferredTransform) -> 移動(-xOffset, -yOffset)
+        // 注意: 座標系の関係で、回転後の座標系で移動する必要がある
+        let moveTransform = CGAffineTransform(translationX: -xOffset, y: -yOffset)
+        let finalTransform = transform.concatenating(moveTransform)
+        
+        layerInstruction.setTransform(finalTransform, at: .zero)
+        instruction.layerInstructions = [layerInstruction]
+        composition.instructions = [instruction]
+        
+        // エクスポートセッション
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let filename = "cropped_\(Int(Date().timeIntervalSince1970)).mp4"
+        let outputURL = documentsPath.appendingPathComponent(filename)
+        
+        guard let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else {
+            completion(nil)
+            return
+        }
+        
+        exportSession.outputURL = outputURL
+        exportSession.outputFileType = .mp4
+        exportSession.videoComposition = composition
+        exportSession.shouldOptimizeForNetworkUse = true
+        
+        exportSession.exportAsynchronously {
+            if exportSession.status == .completed {
+                completion(outputURL)
+            } else {
+                print("Crop export failed: \(String(describing: exportSession.error))")
+                completion(nil)
+            }
         }
     }
     
@@ -253,13 +347,32 @@ extension CameraManager: AVCaptureFileOutputRecordingDelegate {
         }
         
         DispatchQueue.main.async { [weak self] in
-            self?.lastRecordedVideoURL = outputFileURL
-            self?.onRecordingFinished?(outputFileURL)
+            guard let self = self else { return }
             
-            // 動画保存完了時のバイブレーション
-            HapticManager.shared.success()
-            
-
+            if self.targetAspectRatio == .original {
+                self.lastRecordedVideoURL = outputFileURL
+                self.onRecordingFinished?(outputFileURL)
+                HapticManager.shared.success()
+            } else {
+                // Crop video
+                self.cropVideo(sourceURL: outputFileURL, aspectRatio: self.targetAspectRatio) { croppedURL in
+                    DispatchQueue.main.async {
+                        if let url = croppedURL {
+                            self.lastRecordedVideoURL = url
+                            self.onRecordingFinished?(url)
+                            HapticManager.shared.success()
+                            // Delete original file
+                            try? FileManager.default.removeItem(at: outputFileURL)
+                        } else {
+                            // Fallback to original
+                            print("Cropping failed, saving original")
+                            self.lastRecordedVideoURL = outputFileURL
+                            self.onRecordingFinished?(outputFileURL)
+                            HapticManager.shared.error()
+                        }
+                    }
+                }
+            }
         }
     }
 }

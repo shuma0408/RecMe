@@ -7,31 +7,26 @@
 
 import AVFoundation
 import UIKit
+import Photos
 
 class VideoExportManager {
     static let shared = VideoExportManager()
     
     func exportVideo(
         inputURL: URL,
-        preset: ExportPreset,
         completion: @escaping (Result<URL, Error>) -> Void
     ) {
         let asset = AVAsset(url: inputURL)
         
-        guard let exportSession = AVAssetExportSession(asset: asset, presetName: getPresetName(for: preset)) else {
+        guard let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else {
             completion(.failure(NSError(domain: "VideoExport", code: -1, userInfo: [NSLocalizedDescriptionKey: "エクスポートセッションの作成に失敗しました"])))
             return
         }
         
-        let outputURL = getOutputURL(for: preset)
+        let outputURL = getOutputURL()
         exportSession.outputURL = outputURL
-        exportSession.outputFileType = .mp4
+        exportSession.outputFileType = AVFileType.mp4
         exportSession.shouldOptimizeForNetworkUse = true
-        
-        // ファイルサイズ制限に合わせて圧縮
-        if let maxSize = getMaxFileSize(for: preset) {
-            exportSession.fileLengthLimit = Int64(maxSize)
-        }
         
         exportSession.exportAsynchronously {
             switch exportSession.status {
@@ -47,33 +42,28 @@ class VideoExportManager {
         }
     }
     
-    private func getPresetName(for preset: ExportPreset) -> String {
-        switch preset {
-        case .mynavi, .openES:
-            return AVAssetExportPresetMediumQuality
-        case .line:
-            return AVAssetExportPresetLowQuality
-        case .custom:
-            return AVAssetExportPresetHighestQuality
+    func saveToPhotoLibrary(url: URL, completion: @escaping (Result<Void, Error>) -> Void) {
+        PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
+            guard status == .authorized || status == .limited else {
+                completion(.failure(NSError(domain: "VideoExport", code: -4, userInfo: [NSLocalizedDescriptionKey: "写真ライブラリへのアクセス権限がありません"])))
+                return
+            }
+            
+            PHPhotoLibrary.shared().performChanges {
+                PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url)
+            } completionHandler: { success, error in
+                if success {
+                    completion(.success(()))
+                } else {
+                    completion(.failure(error ?? NSError(domain: "VideoExport", code: -5, userInfo: [NSLocalizedDescriptionKey: "保存に失敗しました"])))
+                }
+            }
         }
     }
     
-    private func getMaxFileSize(for preset: ExportPreset) -> Int? {
-        switch preset {
-        case .mynavi:
-            return 20 * 1024 * 1024 // 20MB
-        case .openES:
-            return 30 * 1024 * 1024 // 30MB
-        case .line:
-            return 10 * 1024 * 1024 // 10MB
-        case .custom:
-            return 50 * 1024 * 1024 // 50MB
-        }
-    }
-    
-    private func getOutputURL(for preset: ExportPreset) -> URL {
+    private func getOutputURL() -> URL {
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let filename = "exported_\(preset.rawValue)_\(Date().timeIntervalSince1970).mp4"
+        let filename = "exported_full_\(Date().timeIntervalSince1970).mp4"
         return documentsPath.appendingPathComponent(filename)
     }
 }

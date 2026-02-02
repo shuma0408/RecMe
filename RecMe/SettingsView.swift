@@ -30,7 +30,7 @@ struct SettingsView: View {
                     }) {
                         HStack {
                             Image(systemName: "envelope.fill")
-                                .foregroundColor(.blue)
+                                .foregroundColor(AppTheme.primaryColor)
                             Text("サポートに問い合わせる")
                                 .foregroundColor(.primary)
                         }
@@ -41,7 +41,7 @@ struct SettingsView: View {
                     }) {
                         HStack {
                             Image(systemName: "star.fill")
-                                .foregroundColor(.yellow)
+                                .foregroundColor(AppTheme.warningColor) // Keep yellow-ish or use theme? Star is usually yellow.
                             Text("アプリを評価する")
                                 .foregroundColor(.primary)
                         }
@@ -50,7 +50,7 @@ struct SettingsView: View {
                     NavigationLink(destination: FAQView()) {
                         HStack {
                             Image(systemName: "questionmark.circle.fill")
-                                .foregroundColor(.green)
+                                .foregroundColor(AppTheme.primaryColor)
                             Text("よくある質問")
                         }
                     }

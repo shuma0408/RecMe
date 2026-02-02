@@ -9,7 +9,8 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var cameraManager = CameraManager()
-    @State private var scriptText: String = "ここにスクリプトを入力してください。\n\nこのテキストは自動的にスクロールして流れていきます。\n\nカメラを見ながら自然にスクリプトを読むことができます。\n\nテレプロンプターのように、スクリプトが上から下へ流れていくので、\n\n視線をカメラに向けたまま、スクリプトを読むことができます。\n\nスクロール速度は調整可能です。"
+    @State private var scriptText: String = "ここにスクリプトを入力してください。\n\nこのテキストは自動的にスクロールして流れていきます。\n\nカメラを見ながら自然にスクリプトを読むことができます。\n\nスクリプトが上から下へ流れていくので、\n\n視線をカメラに向けたまま、スクリプトを読むことができます。\n\nスクロール速度は調整可能です。"
+    @State private var scriptTitle: String = ""
     @State private var scrollSpeed: Double = 50.0
     @State private var timeLimit: TimeInterval? = nil
     @State private var isRecording: Bool = false
@@ -22,6 +23,7 @@ struct ContentView: View {
             RecordingView(
                 cameraManager: cameraManager,
                 scriptText: scriptText,
+                scriptTitle: scriptTitle,
                 scrollSpeed: scrollSpeed,
                 timeLimit: timeLimit,
                 isRecording: $isRecording
@@ -34,6 +36,7 @@ struct ContentView: View {
             // スクリプト台本ページ（右）
             ScriptEditView(
                 scriptText: $scriptText,
+                scriptTitle: $scriptTitle,
                 scrollSpeed: $scrollSpeed,
                 timeLimit: $timeLimit
             )
